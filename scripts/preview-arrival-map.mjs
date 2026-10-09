@@ -1,0 +1,7 @@
+import {createServer} from 'node:http';
+import {readFile,readdir} from 'node:fs/promises';
+import {buildArrivalMap} from '../lib/arrival-map.mjs';
+const latest=new Map();
+for(const name of await readdir('data/audits')){if(!name.endsWith('.json')||['campaign.json','retries.json','coverage.json'].includes(name))continue;try{const r=JSON.parse(await readFile('data/audits/'+name,'utf8'));if(!r.records||!r.uf)continue;const key=r.uf+'/'+r.city;if(!latest.has(key)||r.startedAt>=latest.get(key).startedAt)latest.set(key,{startedAt:r.startedAt,...buildArrivalMap([r]).cities[0]});}catch{}}
+const cities=[...latest.values()].filter(c=>c.uf); console.log('Preview municipalities:',cities.length);
+createServer(async(req,res)=>{try{if(req.url==='/api/arrival-map'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({cities,generatedAt:new Date().toISOString()}));}const path=req.url.split('?')[0]==='/mapa'?'/arrival-map.html':req.url.split('?')[0];if(!/^\/[\w./-]+$/.test(path)||path.includes('..'))throw Error();res.setHeader('Content-Type',path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':path.endsWith('.json')?'application/json':'image/svg+xml');res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'");res.end(await readFile('public'+path));}catch{res.writeHead(404);res.end();}}).listen(3001,'127.0.0.1',()=>console.log('Preview http://localhost:3001/mapa'));

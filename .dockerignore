@@ -1,0 +1,10 @@
+.git
+.venv
+node_modules
+data
+outputs
+test
+.env
+.env.*
+*.log
+**/__pycache__
