@@ -193,3 +193,7 @@ O caminho `/app/data` aponta para `/home/confere-voto-data`. Transfira para esse
 O índice SQLite usa WAL e fica no disco local temporário `/tmp`, separado do armazenamento compartilhado. Ele pode ser reconstruído a partir dos relatórios e snapshots persistentes quando o contêiner for substituído; a indexação dos cargos pode levar tempo. Não configure `OFFICE_DB_PATH` em armazenamento de rede. Fora do contêiner, o padrão continua sendo `data/offices.sqlite`.
 
 Valide a senha em janela anônima, o bloqueio de `/api/audits` sem sessão, o login administrativo separado e a preservação dos relatórios após reiniciar. Reinícios encerram sessões e podem exigir retomar a coleta pelo painel. Mantenha backup independente do armazenamento persistente. Não sirva `public` ou `data` diretamente por outro servidor, pois isso contornaria a barreira de acesso do Node.
+
+### Inicialização com base importada
+
+O servidor abre a porta antes de carregar os relatórios. A senha de entrada continua obrigatória. Após entrar, uma página de carregamento consulta `/api/startup` e atualiza automaticamente quando a base estiver pronta. As demais APIs retornam 503 com Retry-After durante a carga, impedindo consultas a totais parciais e alterações na coleta. Em caso de falha, a página informa indisponibilidade e o erro detalhado fica no log. A indexação dos cargos e a atualização de cobertura só começam após a carga dos relatórios. Não é necessário aumentar o timeout do Azure para aguardar essa carga.

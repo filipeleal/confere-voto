@@ -1,3 +1,4 @@
+import { createStartup } from './lib/startup.mjs';
 import { loadSiteGate } from './lib/site-access.mjs';
 import { createAnalytics } from './lib/analytics.mjs';
 import { createContact } from './lib/contact.mjs';
@@ -15,13 +16,22 @@ const publicDecode = createDecodeQueue();
 const admitPublic = createPublicAdmission();
 import { initAudits, refreshCoverage, auditOverview, auditReport, startAudit, stopAudit, startCampaign, retryAudit, retryAllErrors, auditTimeline } from './lib/audit.mjs';
 
-await initAudits();
+
 const auth=await loadAuth();
 const siteGate=await loadSiteGate();
 const contact=createContact();
 const analytics=createAnalytics(process.env.GOOGLE_ANALYTICS_ID);
 
 const files = { '/contact.js':['contact.js','text/javascript'], '/header.js':['header.js','text/javascript'], '/mapa':['arrival-map.html','text/html'], '/arrival-map.js':['arrival-map.js','text/javascript'], '/arrival-map.css':['arrival-map.css','text/css'], '/geo/states.json':['geo/states.json','application/json'], '/geo/cities.json':['geo/cities.json','application/json'], '/geo/state-codes.json':['geo/state-codes.json','application/json'], '/cargos':['offices.html','text/html'], '/offices.js':['offices.js','text/javascript'], '/brand-mark.svg':['brand-mark.svg','image/svg+xml'], '/confere-voto-logo.svg':['confere-voto-logo.svg','image/svg+xml'], '/': ['index.html','text/html'], '/app.js':['app.js','text/javascript'], '/audit.js':['audit.js','text/javascript'], '/timeline.js':['timeline.js','text/javascript'], '/style.css':['style.css','text/css'], '/brasil.css':['brasil.css','text/css'] };
+const startup = createStartup(initAudits, {
+  onReady(){
+    startOfficeIndex();
+    refreshCoverage();
+    setInterval(refreshCoverage,3600000).unref();
+    console.log('Base de contagens carregada. Consultas e coleta liberadas.');
+  },
+  onError(error){console.error('Falha ao carregar a base de contagens:',error);}
+});
 const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -32,6 +42,7 @@ const server = createServer(async (req, res) => {
   try {
     if(await siteGate(req,res))return;
     const { pathname, searchParams: p } = new URL(req.url, 'http://localhost');
+    if(await startup.handle(req,res,pathname))return;
     if(pathname==='/api/contact')return json(200,await contact(req));
     if(pathname==='/api/admin/session'&&req.method==='GET')return json(200,{authenticated:!!auth.session(req),username:auth.session(req)?.username});
     if(pathname.startsWith('/api/admin/')&&req.method==='POST'){
@@ -137,10 +148,13 @@ const server = createServer(async (req, res) => {
 });
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';
-server.listen(port, host, () => console.log(`Confere Voto: http://${host}:${port}`));
+server.listen(port, host, () => {
+  console.log(`Confere Voto: http://${host}:${port}`);
+  console.log('Carregando base de contagens em segundo plano...');
+  setImmediate(() => { void startup.start(); });
+});
 
-refreshCoverage();
-setInterval(refreshCoverage,3600000).unref();
 
-startOfficeIndex();
+
+
 
